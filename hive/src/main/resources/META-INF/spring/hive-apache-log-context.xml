@@ -16,16 +16,42 @@
 		mapreduce.jobhistory.address=${hd.jh}
 	</configuration>
 
-    <!-- This sample requires a running Hive server - see hive.properties for defaults -->
-	<hive-client-factory host="${hive.host}" port="${hive.port}"/>
+	<script id="hdfsScript" language="groovy" location="set-hive-permissions.groovy" run-at-startup="true"/>
+
+	<script id="setupScript" language="groovy" run-at-startup="true">
+		<property name="localSourceFile" value="${basedir}/${localLogFile}"/>
+		<property name="inputDir" value="${hive.input.path}"/>
+		<property name="outputDir" value="${hive.output.path}"/>
+		if (!fsh.test(inputDir)) {
+			fsh.mkdir(inputDir);
+			fsh.chmod(700, inputDir)
+		}
+		fsh.rm(inputDir+"/*");
+		if (!fsh.test(outputDir)) {
+			fsh.mkdir(outputDir);
+			fsh.chmod(700, outputDir)
+		}
+		fsh.rmr(outputDir+"/*");
+		fsh.copyFromLocal(localSourceFile, inputDir);
+		fsh.copyFromLocal("${app.repo}/hive-contrib-${hive.version}.jar", inputDir);
+	</script>
+
+	<!-- This sample requires a running HiveServer2 -->
+	<hive-client-factory id="hiveClientFactory" hive-data-source-ref="hiveDataSource"/>
+
+	<beans:bean id="hiveDriver" class="org.apache.hive.jdbc.HiveDriver"/>
+	<beans:bean id="hiveDataSource" class="org.springframework.jdbc.datasource.SimpleDriverDataSource">
+		<beans:constructor-arg name="driver" ref="hiveDriver"/>
+		<beans:constructor-arg name="url" value="${hive.url}"/>
+	</beans:bean>
 	 
 	<hive-runner id="hiveRunner" run-at-startup="false" >
 		<script location="apache-log-simple.hql">
 				<arguments>
-					hiveContribJar=${app.repo}/hive-contrib-${hive.version}.jar
-					localInPath="${basedir}/data/apache.log"
+					hiveContribJar=hdfs://${hive.input.path}/hive-contrib-${hive.version}.jar
+					localInPath="${hive.input.path}/apache.log"
 				</arguments>
-		</script>			
+		</script>
 	</hive-runner>
 
 </beans:beans>
